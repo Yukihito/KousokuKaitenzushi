@@ -1,8 +1,8 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class SushiRacingCamera : MonoBehaviour {
-	GameObject sushi;
+public class FourToThreeCamera : MonoBehaviour {
+
 	float prevScreenWidth;
 	float prevScreenHeight;
 
@@ -37,20 +37,10 @@ public class SushiRacingCamera : MonoBehaviour {
 
 	// Use this for initialization
 	void Start () {
-		sushi = GameObject.Find ("RacingSushi");
 	}
-	
+
 	// Update is called once per frame
 	void Update () {
 		updateScreenSize ();
-		Vector3 forward = sushi.transform.position - transform.position;
-		forward.y = sushi.transform.forward.y;
-		Quaternion preferedRotation = Quaternion.LookRotation (forward);
-		Quaternion nextRotation = Quaternion.Lerp (transform.rotation, preferedRotation, 0.1f);
-		Vector3 preferedPosition = sushi.transform.position - sushi.transform.forward * 3.5f;
-		preferedPosition.y = sushi.transform.position.y + 1.2f;
-		Vector3 nextPosition = Vector3.Lerp (transform.position, preferedPosition, 0.3f);
-		transform.position = nextPosition;
-		transform.rotation = nextRotation;
 	}
 }

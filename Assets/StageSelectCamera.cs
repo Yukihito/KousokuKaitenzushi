@@ -1,7 +1,10 @@
-﻿ using UnityEngine;
+﻿using UnityEngine;
 using System.Collections;
 
-public class TitleCamera : MonoBehaviour {
+public class StageSelectCamera : MonoBehaviour {
+	float orbitRadius = 80f;
+	float orbitAngle = 0f;
+	float orbitSpeed = 0.003f;
 
 	float prevScreenWidth;
 	float prevScreenHeight;
@@ -42,5 +45,11 @@ public class TitleCamera : MonoBehaviour {
 	// Update is called once per frame
 	void Update () {
 		updateScreenSize ();
+		orbitAngle = (orbitAngle + orbitSpeed) % (2f * Mathf.PI);
+		Vector3 preferedPosition = new Vector3 (Mathf.Cos (orbitAngle) * orbitRadius, 10f, Mathf.Sin (orbitAngle) * orbitRadius - 10f) + new Vector3(50f, 50f, 0f);
+		transform.position = Vector3.Lerp (transform.position, preferedPosition, 0.1f);
+		Vector3 forward = Vector3.zero - transform.position;
+		Quaternion nextRotation = Quaternion.LookRotation (forward);
+		transform.rotation = nextRotation;
 	}
 }

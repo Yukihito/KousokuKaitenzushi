@@ -1,60 +1,65 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using System;
 
 public class CourseFactory : MonoBehaviour {
-	Mesh mesh;
 	public Floor Floor;
 	public bool IsCourseCreated = false;
+	public GameObject AcceleratorGameObject;
+	public GameObject RunningHorseGameObject;
+	public GameObject RollingAgariGameObject;
+	public GameObject SuperAcceleratorGameObject;
+	public GameObject LandingSiteGameObject;
+	public int FloorId;
 
-	public void CreateCourse() {
+	public void CreateCourse () {
 		if (!IsCourseCreated) {
-			mesh = new Mesh(); 
-
-			Floor floor = new Floor (new Vector3 (0f, 0f, 8f), new Vector3 (0f, 0f, -8f), new Vector3(24f, 0f, -8f), new Vector3(24f, 0f, 8f));
-			floor
-				.Extend (24f)
-				.Extend(24f)
-				.Extend (24f)
-				.Extend(24f)
-				.ExtendOrbitY(100f, -Mathf.PI / 48, 48, 2f)
-				.ExtendHorizontally(24f, true)
-				.Extend(24f)
-				.ExtendOrbitX(200f, -Mathf.PI / 48f, 24);
-
-			Vector3 [] vertices = floor.Vertices.ToArray();
-			Vector2 [] uv = new Vector2[vertices.Length];
-			int[] triangles = new int[floor.Count() * 2 * 3];
-
-			for (int i = 0; i < uv.Length; i += 4) {
-				uv[i] = new Vector2(0.0f, 0.0f);
-				uv[i + 1] = new Vector2(0.0f, 1.0f);
-				uv[i + 2] = new Vector2(1.0f, 1.0f);
-				uv[i + 3] = new Vector2(1.0f, 0.0f);
-			}
-
-			for (int i = 0; i < triangles.Length; i += 6) {
-				int vi = (i * 4) / 6;
-				triangles[i + 0] = vi + 2;
-				triangles[i + 1] = vi + 1;
-				triangles[i + 2] = vi + 0;
-				triangles[i + 3] = vi + 0;
-				triangles[i + 4] = vi + 3;
-				triangles[i + 5] = vi + 2;
-			}
-
-			mesh.vertices  = vertices;
-			mesh.uv        = uv;
-			mesh.triangles = triangles;
-
-			mesh.RecalculateNormals();
-			mesh.RecalculateBounds();
-
-			GetComponent<MeshFilter>().sharedMesh = mesh;
-			GetComponent<MeshFilter>().sharedMesh.name = "courseMesh";
-			Floor = floor;
+			FloorList floors = CreateFloorList();
+			Floor = floors.Head;
+			GetComponent<MeshFilter> ().sharedMesh = floors.Mesh;
+			GetComponent<MeshFilter> ().sharedMesh.name = "courseMesh";
 			IsCourseCreated = true;
 		}
+	}
+
+	protected FloorList CreateFloorList () {
+		switch (FloorId) {
+		case 1:
+			return new Stage1FloorsFactory().CreateFloorList(this);
+		case 2:
+			return new Stage2FloorsFactory ().CreateFloorList (this);
+		case 3:
+			return new Stage3FloorsFactory ().CreateFloorList (this);
+		case 4:
+			return new Stage4FloorsFactory ().CreateFloorList (this);
+		case 5:
+			return new Stage5FloorsFactory ().CreateFloorList (this);
+		default:
+			return null;
+		}
+	}
+
+	public void PutAccelerator(Vector3 position, Quaternion rotation) {
+		Instantiate(AcceleratorGameObject, position, rotation);
+	}
+
+	public void PutAgari(Vector3 position, Quaternion rotation) {
+		Instantiate(RollingAgariGameObject, position, rotation);
+	}
+
+	public void PutHorse(Vector3 position, Quaternion rotation, Floor initFloor) {
+		Car horse = (Instantiate(RunningHorseGameObject, position, rotation) as GameObject).GetComponent<Car>();
+		horse.LastIntersectedFloor = initFloor;
+	}
+
+	public void PutSuperAccelerator(Vector3 position, Quaternion rotation) {
+		Instantiate(SuperAcceleratorGameObject, position, rotation);
+	}
+
+	public void PutLandingSite(Vector3 position, Quaternion rotation, Floor initFloor) {
+		LandingSite site = (Instantiate(LandingSiteGameObject, position, rotation) as GameObject).GetComponent<LandingSite>();
+		site.Floor = initFloor;
 	}
 
 	// Use this for initialization
@@ -68,328 +73,663 @@ public class CourseFactory : MonoBehaviour {
 	}
 }
 
-
-
-public class NearPlanes {
-	Plane Nearest;
-	Plane Next;
-	Plane Prev;
-
-	public NearPlanes(Plane nearest, Plane next, Plane prev) {
-		Nearest = nearest;
-		Next = next;
-		Prev = prev;
-	}
-
-	public Quaternion GetLerpRotation(Vector3 currentPosition, Vector3 currentRight) {
-		/*
-		Quaternion nearestRotation = getRotationByPlane(Nearest, currentPosition, currentRight);
-		Quaternion nextRotation = getRotationByPlane (Next, currentPosition, currentRight);
-		Quaternion prevRotation = getRotationByPlane (Prev, currentPosition, currentRight);
-		*/
-		Quaternion nearestRotation = getRotationByPlane(Nearest, currentPosition, currentRight);
-		Quaternion q = lerpRotationByPlaneDistance (currentPosition, currentRight, Nearest, Next);
-		if (nearestRotation == q) {
-			return lerpRotationByPlaneDistance (currentPosition, currentRight, Nearest, Prev);
-		}
-		return q;
-	}
-
-	Quaternion lerpRotationByPlaneDistance(Vector3 currentPosition, Vector3 currentRight, Plane p1, Plane p2) {
-		Vector3 p1Center = p1.GetCenter();
-		Vector3 p2Center = p2.GetCenter();
-		Quaternion p1Rotation = getRotationByPlane(p1, currentPosition, currentRight);
-		Quaternion p2Rotation = getRotationByPlane(p2, currentPosition, currentRight);
-
-		Vector3 vecToP1 = p1Center - currentPosition;
-		Vector3 vecToP2 = p2Center - currentPosition;
-		if (Vector3.Dot(vecToP1, vecToP2) < 0) {
-			Vector3 p1ToP2 = (p2Center - p1Center);
-			Vector3 p1ToP2Dir = p1ToP2.normalized;
-			//Debug.Log (p1ToP2.magnitude);
-			Debug.Log ((-Vector3.Dot (p1ToP2Dir, vecToP1)) / p1ToP2.magnitude);
-			return Quaternion.Lerp (p1Rotation, p2Rotation, -Vector3.Dot (p1ToP2Dir, vecToP1) / p1ToP2.magnitude);
-		}
-		return p1Rotation;
-	}
-
-	Quaternion getRotationByPlane(Plane plane, Vector3 currentPosition, Vector3 currentRight) {
-		Vector3 nextUp = plane.GetUp();
-		//Debug.Log (nextUp);
-		Vector3 nextRight = (plane.GetIntersectPosition (currentRight + currentPosition) - currentPosition).normalized;
-		Vector3 nextForward = Vector3.Cross (nextRight, nextUp).normalized;
-		return Quaternion.LookRotation (nextForward, nextUp);
-	}
+public abstract class FloorListFactory {
+	public abstract FloorList CreateFloorList (CourseFactory cf);
 }
 
 public class Intersection {
 	public bool IsIntersected;
 	public Vector3 IntersectPosition;
-	public Vector3[] TriangleVertices;
-	public Plane Plane;
-	public NearPlanes NearPlanes;
+	public Vector3 Normal;
 
-	public Intersection(bool isIntersected, Vector3 intersectPosition, Vector3[] triangleVertices, Plane plane) {
+	public Intersection(
+		bool isIntersected,
+		Vector3 intersectPosition,
+		Vector3 normal) {
 		IsIntersected = isIntersected;
 		IntersectPosition = intersectPosition;
-		TriangleVertices = triangleVertices;
-		Plane = plane;
+		Normal = normal;
 	}
 
-	public static Intersection Intersected(Vector3 intersectPosition, Vector3 v0, Vector3 v1, Vector3 v2) {
-		Vector3[] triangleVertices = new Vector3[3];
-		triangleVertices [0] = v0;
-		triangleVertices [1] = v1;
-		triangleVertices [2] = v2;
-		return new Intersection (true, intersectPosition, triangleVertices, new Plane(v0, v1, v2));
-	}
-
-	public Vector3 Up {
-		get {
-			if (TriangleVertices == null) {
-				return Vector3.up;
-			} else {
-				return - Vector3.Cross (TriangleVertices [1] - TriangleVertices [0], TriangleVertices [2] - TriangleVertices [0]).normalized;
-			}
-		}
+	public static Intersection Intersected(Vector3 intersectPosition, Vector3 normal) {
+		return new Intersection (true, intersectPosition, normal);
 	}
 
 	public static Intersection NotIntersected() {
-		return new Intersection (false, Vector3.zero, null, null);
+		return new Intersection (false, Vector3.zero, Vector3.zero);
 	}
 }
 
-public class Plane {
-	public Vector3 V0;
-	public Vector3 V1;
-	public Vector3 V2;
-
-	public Plane(Vector3 v0, Vector3 v1, Vector3 v2) {
-		V0 = v0;
-		V1 = v1;
-		V2 = v2;
-	}
-
-	public Vector3 GetIntersectPosition(Vector3 pos) {
-		Vector3 normal = Vector3.Cross (V1 - V0, V2 - V0).normalized;
-		float d = -(V0.x * normal.x + V0.y * normal.y + V0.z * normal.z);
-		float t = d - Vector3.Dot (pos, normal);
-		return pos + normal * t;
-	}
-
-	public Vector3 GetCenter() {
-		return (V0 + V1 + V2) / 3f;
-	}
-
-	public Vector3 GetUp() {
-		return - Vector3.Cross (V1 - V0, V2 - V0).normalized;
-	}
-}
-
-public class Floor {
-	public List<Vector3> Vertices;
+public abstract class Floor {
 	public Floor Next;
 	public Floor Prev;
-	public Vector3 Center;
-	int startIndex;
+	public Vector3 RightForward;
+	public Vector3 LeftForward;
+	public Vector3 RightBack;
+	public Vector3 LeftBack;
+	public float Height = 2f;
+	public float Width;
+	public Vector3 Forward;
+	public Mesh Mesh;
+	public int Order = 0;
 
-	public Floor(Vector3 v0, Vector3 v1, Vector3 v2, Vector3 v3) {
-		Vertices = new List<Vector3> ();
-		Vertices.Add (v0);
-		Vertices.Add (v1);
-		Vertices.Add (v2);
-		Vertices.Add (v3);
-		Center = (v0 + v1 + v2 + v3) / 4f;
-		startIndex = 0;
-	}
+	public abstract Intersection GetIntersection (Vector3 pos);
 
-	Vector3 getForward() {
-		return (Vector3.Lerp (
-			Vertices [startIndex], Vertices [startIndex + 1], 0.5f)
-			- Vector3.Lerp (Vertices [startIndex + 3], Vertices [startIndex + 2], 0.5f)).normalized;
-	}
+	public abstract Vector3 GetTangentDir (Vector3 pos);
 
-	public Floor(Vector3 v0, Vector3 v1, Floor prev) {
-		this.Prev = prev;
-		this.Vertices = prev.Vertices;
-		this.startIndex = this.Vertices.Count;
-		Vector3 v2 = this.Vertices [prev.startIndex + 1];
-		Vector3 v3 = this.Vertices [prev.startIndex];
-		this.Vertices.Add (v0);
-		this.Vertices.Add (v1);
-		this.Vertices.Add (v2);
-		this.Vertices.Add (v3);
-		Center = (v0 + v1 + v2 + v3) / 4f;
-	}
+	public abstract Vector3 GetMiddle (Vector3 pos);
 
-	public Floor Extend(Vector3 v0, Vector3 v1) {
-		Floor floor = new Floor (v0, v1, this);
-		this.Next = floor;
-		return floor;
-	}
+	public abstract float GetPercentage (Vector3 pos);
 
-	public Floor Extend(float length) {
-		Vector3 forward = getForward ();
-		Vector3 v0 = Vertices [startIndex] + forward * length;
-		Vector3 v1 = Vertices [startIndex + 1] + forward * length;
-		return Extend (v0, v1);
-	}
+	protected void SetupNormal(bool isFlip = false) {
+		Vector3[] vertices = Mesh.vertices;
+		Vector3[] normals = new Vector3[vertices.Length];
+		/**
+		 * 6 5
+		 * 7 8
+		 * 2 1
+		 * 3 4
+		 * ---
+		 * 4 4
+		 * 4 4
+		 * ---
+		 * 
+		 * vi + 5, vi + 4
+		 * vi + 6, vi + 7
+		 * vi + 1, vi + 0
+		 * vi + 2, vi + 3
+		 * 
+		 * merge (vi + 7, vi + 1) and (vi + 8, vi + 0)
+		 */
+		float rectCount = vertices.Length / 4;
 
-	public Floor ExtendHorizontally(float length, bool isUseLeftY) {
-		Vector3 forward = getForward ();
-		Vector3 v0 = Vertices [startIndex] + forward * length;
-		Vector3 v1 = Vertices [startIndex + 1] + forward * length;
-		if (isUseLeftY) {
-			v1.y = v0.y;
-		} else {
-			v0.y = v1.y;
+		for (int i = 0; i < (rectCount - 1); i++) {
+			int vi = i * 4;
+			Vector3 rfn = - Vector3.Cross (vertices [vi + 4] - vertices [vi + 7], vertices [vi + 6] - vertices [vi + 7]).normalized;
+			Vector3 rbn = Vector3.Cross (vertices [vi + 3] - vertices [vi + 0], vertices [vi + 1] - vertices [vi + 0]).normalized;
+			Vector3 lfn = Vector3.Cross (vertices [vi + 5] - vertices [vi + 6], vertices [vi + 7] - vertices [vi + 6]).normalized;
+			Vector3 lbn = - Vector3.Cross (vertices [vi + 2] - vertices [vi + 1], vertices [vi + 0] - vertices [vi + 1]).normalized;
+			Vector3 rn = ((rfn + rbn) / 2f).normalized;
+			Vector3 ln = ((lfn + lbn) / 2f).normalized;
+			normals[vi + 7] = rn;
+			normals[vi + 0] = rn;
+			normals[vi + 6] = ln;
+			normals[vi + 1] = ln;
 		}
-		return Extend (v0, v1);
-	}
 
-	public Floor ExtendOrbitY(float radius, float theta, int extendCount, float up) {
-		Vector3 prevV0 = Vertices [startIndex];
-		Vector3 prevV1 = Vertices [startIndex + 1];
-		Vector3 dirStartToCenter = (prevV1 - prevV0).normalized;
-		if (theta < 0f) {
-			dirStartToCenter = -dirStartToCenter;
-		}
-		Vector3 dirCenterToStart = -dirStartToCenter;
-		Vector3 floorEnd = Vector3.Lerp(prevV0, prevV1, 0.5f);
-		Vector3 center = floorEnd + dirStartToCenter * radius;
-		float centerToV0Length = (prevV0 - center).magnitude;
-		float centerToV1Length = (prevV1 - center).magnitude;
-		float startTheta = Mathf.Atan2 (dirCenterToStart.z, dirCenterToStart.x);
-		Floor floor = this;
-		for (int i = 0; i < extendCount; i++) {
-			center.y += up;
-			float nextTheta = startTheta + theta * (float)(i + 1);
-			Vector3 nextDir = new Vector3 (Mathf.Cos (nextTheta), 0f, Mathf.Sin (nextTheta));
-			Vector3 v0 = center + nextDir * centerToV0Length;
-			Vector3 v1 = center + nextDir * centerToV1Length;
-			/*
-			if (theta < 0f) {
-				v1.y += up;
-			} else {
-				v0.y += up;
-			}*/
-			floor = floor.Extend (v0, v1);
-		}
-		return floor;
-	}
 
-	public Floor ExtendOrbitX(float radius, float theta, int extendCount) {
-		Vector3 prevV0 = Vertices [startIndex];
-		Vector3 prevV1 = Vertices [startIndex + 1];
-		Vector3 prevV2 = Vertices [startIndex + 2];
-		Vector3 v1ToV0 = prevV0 - prevV1;
-		Vector3 floorUp = Vector3.Cross(prevV1 - prevV0, prevV2 - prevV0).normalized;
-		Vector3 floorForward = (prevV1 - prevV2).normalized;
-		Quaternion startRotation = Quaternion.LookRotation (floorForward, floorUp);
-		Vector3 dirCenterToStart = floorUp;
-		if (theta > 0f) {
-			dirCenterToStart = -dirCenterToStart;
-		}
-		Vector3 floorEnd = Vector3.Lerp(prevV0, prevV1, 0.5f);
-		Vector3 center = floorEnd - dirCenterToStart * radius;
-		Floor floor = this;
-		float startDir = Mathf.PI * 3f / 2f;
-		if (theta < 0f) {
-			startDir = Mathf.PI / 2f;
-		}
-		for (int i = 0; i < extendCount; i++) {
-			float nextTheta = theta * (float)(i + 1) + startDir;
-			Vector3 nextDir = new Vector3 (0f, Mathf.Sin (nextTheta), Mathf.Cos (nextTheta));
-			Vector3 v0 = center + startRotation * (nextDir * radius) + v1ToV0 / 2f;
-			Vector3 v1 = center + startRotation * (nextDir * radius) - v1ToV0 / 2f;
-			floor = floor.Extend (v0, v1);
-		}
-		return floor;
-	}
-
-	public Intersection GetIntersection(Vector3 pos) {
-		Intersection triangleIntersection = getIntersection (pos, Vertices [startIndex], Vertices [startIndex + 1], Vertices [startIndex + 2]);
-		if (triangleIntersection.IsIntersected) {
-			if (Next != null) {
-				Plane nearest = new Plane (Vertices [startIndex], Vertices [startIndex + 1], Vertices [startIndex + 2]);
-				Plane next = new Plane (Vertices [startIndex + 6], Vertices [startIndex + 7], Vertices [startIndex + 4]);
-				Plane prev = new Plane (Vertices [startIndex + 2], Vertices [startIndex + 3], Vertices [startIndex]);
-				NearPlanes planes = new NearPlanes (nearest, next, prev);
-				triangleIntersection.NearPlanes = planes;
+		if (isFlip) {
+			for (int i = 0; i < normals.Length; i++) {
+				normals [i] = -normals [i];
 			}
-			return triangleIntersection;
 		}
-		triangleIntersection = getIntersection (pos, Vertices [startIndex + 2], Vertices [startIndex + 3], Vertices [startIndex]);
-		if (triangleIntersection.IsIntersected) {
-			if (Next != null) {
-				Plane nearest = new Plane (Vertices [startIndex + 2], Vertices [startIndex + 3], Vertices [startIndex]);
-				Plane next = new Plane (Vertices [startIndex], Vertices [startIndex + 1], Vertices [startIndex + 2]);
-				Plane prev = new Plane (Vertices [startIndex - 4], Vertices [startIndex - 3], Vertices [startIndex - 2]);
-				NearPlanes planes = new NearPlanes (nearest, next, prev);
-				triangleIntersection.NearPlanes = planes;
+
+		normals [2] = normals [1];
+		normals [3] = normals [0];
+		normals [normals.Length - 3] = normals [normals.Length - 2];
+		normals [normals.Length - 4] = normals [normals.Length - 1];
+		Mesh.normals = normals;
+	}
+}
+
+public class FloorList {
+	public Floor Head;
+	public Floor Last;
+	CourseFactory factory;
+	public Mesh Mesh {
+		get {
+			Mesh mesh = new Mesh ();
+			Floor it = Head;
+			List<Vector3> vertices = new List<Vector3>();
+			List<Vector3> normals = new List<Vector3>();
+			List<Vector2> uv = new List<Vector2>();
+			List<int> triangles = new List<int>();
+
+			do {
+				int vertCount = vertices.Count;
+				vertices.AddRange (it.Mesh.vertices);
+				normals.AddRange (it.Mesh.normals);
+				uv.AddRange (it.Mesh.uv);
+				int[] nextTriangles = new int[it.Mesh.triangles.Length];
+				for (int i = 0; i < nextTriangles.Length; i++) {
+					nextTriangles [i] = vertCount + it.Mesh.triangles [i];
+				}
+				triangles.AddRange (nextTriangles);
+				it = it.Next;
+			} while (it != Head);
+
+			int floorCount = vertices.Count / 4;
+
+			// back
+
+			int vc = vertices.Count;
+
+			for (int i = 0; i < vc; i++) {
+				vertices.Add (vertices [i] - normals [i] * 2f);
 			}
-			return triangleIntersection;
+
+			Vector3[] reversedNormals = new Vector3[normals.Count];
+			for (int i = 0; i < normals.Count; i++) {
+				reversedNormals [i] = -normals [i];
+			}
+
+			normals.AddRange(normals);
+
+			for (int i = 0; i < floorCount; i++) {
+				int vi = (floorCount + i) * 4;
+				int[] nextTriangles = new int[6];
+				nextTriangles [0] = vi + 0;
+				nextTriangles [1] = vi + 1;
+				nextTriangles [2] = vi + 2;
+				nextTriangles [3] = vi + 2;
+				nextTriangles [4] = vi + 3;
+				nextTriangles [5] = vi + 0;
+				triangles.AddRange (nextTriangles);
+			}
+
+			uv.AddRange (uv);
+	
+			// side
+
+			for (int i = 0; i < floorCount; i++) {
+				int vi = i * 4;
+				int vi0 = vi + 1;
+				int vi1 = floorCount * 4 + vi + 1;
+				int vi2 = floorCount * 4 + vi + 2;
+				int vi3 = vi + 2;
+
+				int vi4 = vi + 0;
+				int vi5 = floorCount * 4 + vi + 0;
+				int vi6 = floorCount * 4 + vi + 3;
+				int vi7 = vi + 3;
+
+				Vector3 f = vertices [vi0] - vertices [vi3];
+				Vector3 f2 = vertices [vi1] - vertices [vi2];
+				Vector3[] nextVertices = new Vector3[] {
+					vertices[vi0], vertices[vi1], vertices[vi2], vertices[vi3],
+					vertices[vi4], vertices[vi5], vertices[vi6], vertices[vi7]
+				};
+				Vector3[] nextNormals = new Vector3[] {
+					Vector3.Cross(f, normals[vi0]),
+					Vector3.Cross(f, normals[vi1]),
+					Vector3.Cross(f, normals[vi2]),
+					Vector3.Cross(f, normals[vi3]),
+					-Vector3.Cross(f2, normals[vi0]),
+					-Vector3.Cross(f2, normals[vi1]),
+					-Vector3.Cross(f2, normals[vi2]),
+					-Vector3.Cross(f2, normals[vi3])
+				};
+				Vector2[] nextUVs = new Vector2[] {
+					uv [vi0], uv [vi4], uv [vi7], uv [vi3],
+					uv [vi0], uv [vi4], uv [vi7], uv [vi3]  };
+
+
+				int vertCount = vertices.Count;
+				int[] nextTriangles = new int[] {
+					vertCount + 2,
+					vertCount + 1,
+					vertCount + 0,
+					vertCount + 0,
+					vertCount + 3,
+					vertCount + 2,
+					vertCount + 0 + 4,
+					vertCount + 1 + 4,
+					vertCount + 2 + 4,
+					vertCount + 2 + 4,
+					vertCount + 3 + 4,
+					vertCount + 0 + 4
+				};
+
+				vertices.AddRange (nextVertices);
+				normals.AddRange (nextNormals);
+				uv.AddRange (nextUVs);
+				triangles.AddRange (nextTriangles);
+			}
+
+			mesh.vertices  = vertices.ToArray();
+			mesh.uv        = uv.ToArray();
+			mesh.triangles = triangles.ToArray();
+			mesh.normals = normals.ToArray ();
+
+			mesh.RecalculateBounds();
+
+			return mesh;
 		}
-		return triangleIntersection;
 	}
 
-	public Intersection GetNearPlaneIntersection(Vector3 pos) {
-		Intersection intersection1 = getPlaneIntersection (pos, Vertices [startIndex], Vertices [startIndex + 1], Vertices [startIndex + 2]);
-		Intersection intersection2 = getPlaneIntersection (pos, Vertices [startIndex + 2], Vertices [startIndex + 3], Vertices [startIndex]);
-		float dist1 = Vector3.Distance (intersection1.IntersectPosition, pos);
-		float dist2 = Vector3.Distance (intersection1.IntersectPosition, pos);
-		if (dist1 < dist2) {
-			return intersection1;
-		} else {
-			return intersection2;
+	public FloorList(Floor head, CourseFactory factory) {
+		Head = head;
+		Last = head;
+		this.factory = factory;
+	}
+
+	public FloorList Flat(float depth) {
+		Vector3 forward = Last.Forward;
+		Vector3 startPosition = (Last.RightForward + Last.LeftForward) / 2f;
+		Vector3 position = startPosition + forward * (depth / 2f);
+		Vector3 right = (Last.RightForward - Last.LeftForward).normalized;
+		Vector3 normal = Vector3.Cross (forward, right).normalized;
+		float width = Last.Width;
+		Floor floor = new FlatFloor (normal, position, forward, depth, width);
+		Last.Next = floor;
+		floor.Prev = Last;
+		Last = floor;
+		floor.Order = floor.Prev.Order + 1;
+		return this;
+	}
+
+	public FloorList Incline(float depth, float startInclination, float endInclination, bool isFlip = false) {
+		Vector3 forward = Last.Forward;
+		Vector3 startPosition = (Last.RightForward + Last.LeftForward) / 2f;
+		Vector3 position = startPosition;
+		Vector3 right = (Last.RightForward - Last.LeftForward).normalized;
+		if (isFlip) {
+			right = -right;
 		}
+		float width = Last.Width;
+		Floor floor = new InclinedFloor (position, forward, right, depth, width, (int)(depth * 2f), startInclination, endInclination);
+		Last.Next = floor;
+		floor.Prev = Last;
+		Last = floor;
+		floor.Order = floor.Prev.Order + 1;
+		return this;
 	}
 
-	Intersection getIntersection(Vector3 pos, Vector3 v0, Vector3 v1, Vector3 v2) {
-		Vector3 intersectPosition = getIntersectPosition (pos, v0, v1, v2);
-		Vector3 v01 = v1 - v0;
-		Vector3 v1i = intersectPosition - v1;
-		Vector3 v12 = v2 - v1;
-		Vector3 v2i = intersectPosition - v2;
-		Vector3 v20 = v0 - v2;
-		Vector3 v0i = intersectPosition - v0;
-		Vector3 c1 = Vector3.Cross (v01, v1i);
-		Vector3 c2 = Vector3.Cross (v12, v2i);
-		Vector3 c3 = Vector3.Cross (v20, v0i);
-		bool isIntersect = Vector3.Dot (c1, c2) >= 0f && Vector3.Dot (c1, c3) >= 0f;
-		if (isIntersect) {
-			return Intersection.Intersected (intersectPosition, v0, v1, v2);
+	public FloorList OrbitY(float radius, float height, float startTheta, float endTheta, float inclination, Vector3 right, bool isClockwise = true) {
+		Vector3 startPosition = (Last.RightForward + Last.LeftForward) / 2f;
+		Vector3 center = startPosition - right * radius;
+
+		if (!isClockwise) {
+			center = startPosition + right * radius;
 		}
-		return Intersection.NotIntersected();
+
+		float width = Last.Width;
+		Floor floor = new OrbitYFloor (center, width, height, radius, inclination, 50, startTheta, endTheta, isClockwise);
+		Last.Next = floor;
+		floor.Prev = Last;
+		Last = floor;
+		floor.Order = floor.Prev.Order + 1;
+		return this;
 	}
 
-	Intersection getPlaneIntersection(Vector3 pos, Vector3 v0, Vector3 v1, Vector3 v2) {
-		Vector3 intersectPosition = getIntersectPosition (pos, v0, v1, v2);
-		Vector3 v01 = v1 - v0;
-		Vector3 v1i = intersectPosition - v1;
-		Vector3 v12 = v2 - v1;
-		Vector3 v2i = intersectPosition - v2;
-		Vector3 v20 = v0 - v2;
-		Vector3 v0i = intersectPosition - v0;
-		Vector3 c1 = Vector3.Cross (v01, v1i);
-		Vector3 c2 = Vector3.Cross (v12, v2i);
-		Vector3 c3 = Vector3.Cross (v20, v0i);
-		return Intersection.Intersected (intersectPosition, v0, v1, v2);
+	public FloorList Upslope(float radius, float startTheta, float endTheta) {
+		Vector3 startPosition = (Last.RightForward + Last.LeftForward) / 2f;
+		Vector3 center = startPosition + Vector3.up * radius;
+		Vector3 right = (Last.RightForward - Last.LeftForward).normalized;
+		Floor floor = new OrbitXInsideFloor (center, right, Vector3.up, Last.Width, radius, 50, startTheta, endTheta);
+		Last.Next = floor;
+		floor.Prev = Last;
+		Last = floor;
+		floor.Order = floor.Prev.Order + 1;
+		return this;
 	}
 
-	public Vector3 getIntersectPosition(Vector3 pos, Vector3 v0, Vector3 v1, Vector3 v2) {
-		Vector3 normal = Vector3.Cross (v1 - v0, v2 - v0).normalized;
-		Vector3 rayDir = -normal;
-		float d = (v0.x * normal.x + v0.y * normal.y + v0.z * normal.z);
-		float t = (d - Vector3.Dot (pos, normal)) / Vector3.Dot(rayDir, normal);
-		return pos + rayDir * t;
+	public FloorList Cup(float radius) {
+		Vector3 startPosition = (Last.RightForward + Last.LeftForward) / 2f;
+
+		Vector3 right = (Last.RightForward - Last.LeftForward).normalized;
+		Vector3 up = -Vector3.Cross (right, Vector3.up).normalized;
+		Vector3 center = startPosition + up * radius;
+		Floor floor = new OrbitXInsideFloor (center, right, Vector3.up, Last.Width, radius, 50, 0, -Mathf.PI);
+		Last.Next = floor;
+		floor.Prev = Last;
+		Last = floor;
+		floor.Order = floor.Prev.Order + 1;
+		return this;
 	}
 
-	public int Count() {
-		if (Next == null) {
-			return 1;
-		} else {
-			return 1 + Next.Count ();
+	public FloorList Downslope(float radius, float startTheta, float endTheta) {
+		Vector3 startPosition = (Last.RightForward + Last.LeftForward) / 2f;
+		Vector3 right = (Last.RightForward - Last.LeftForward).normalized;
+		Vector3 forward = Last.Forward;
+		Vector3 up = Vector3.Cross (forward, right);
+		Vector3 center = startPosition + up * radius;
+		Floor floor = new OrbitXInsideFloor (center, right, Vector3.up, Last.Width, radius, 50, startTheta, endTheta);
+		Last.Next = floor;
+		floor.Prev = Last;
+		Last = floor;
+		floor.Order = floor.Prev.Order + 1;
+		return this;
+	}
+
+	public FloorList SlopeTop(float radius, float startTheta, float endTheta) {
+		Vector3 startPosition = (Last.RightForward + Last.LeftForward) / 2f;
+		Vector3 right = (Last.RightForward - Last.LeftForward).normalized;
+		Vector3 up = Vector3.Cross (Last.Forward, right);
+		Vector3 center = startPosition - up * radius;
+		Floor floor = new OrbitXOutsideFloor (center, right, Vector3.up, Last.Width, radius, 50, startTheta, endTheta);
+		Last.Next = floor;
+		floor.Prev = Last;
+		Last = floor;
+		floor.Order = floor.Prev.Order + 1;
+		return this;
+	}
+
+	public FloorList Close() {
+		Floor floor = new FlatFloor (Head.RightBack, Head.LeftBack, Last.LeftForward, Last.RightForward);
+		Last.Next = floor;
+		floor.Prev = Last;
+		Last = floor;
+		floor.Next = Head;
+		Head.Prev = floor;
+		floor.Order = floor.Prev.Order + 1;
+		return this;
+	}
+
+	public FloorList Accelerator() {
+		if (factory != null) {
+			Vector3 pos = (Last.LeftForward + Last.RightForward) / 2f;
+			Vector3 right = (Last.RightForward - Last.LeftForward).normalized;
+			Vector3 up = Vector3.Cross (Last.Forward, right);
+			Quaternion rotation = Quaternion.LookRotation (-Last.Forward, up);
+			factory.PutAccelerator (pos, rotation);
 		}
+		return this;
+	}
+
+	public FloorList Agari() {
+		if (factory != null) {
+			Vector3 pos = (Last.LeftForward + Last.RightForward) / 2f;
+			Vector3 right = (Last.RightForward - Last.LeftForward).normalized;
+			Vector3 up = Vector3.Cross (Last.Forward, right);
+			Quaternion rotation = Quaternion.LookRotation (-Last.Forward, up);
+			float width = Last.Width;
+			factory.PutAgari (pos + ((width / 2f) + 5f) * right, rotation);
+			factory.PutAgari (pos - ((width / 2f) + 5f) * right, rotation);
+		}
+		return this;
+	}
+
+	public FloorList Horse() {
+		if (factory != null) {
+			Vector3 pos = (Last.LeftForward + Last.RightForward) / 2f;
+			Vector3 right = (Last.RightForward - Last.LeftForward).normalized;
+			Vector3 up = Vector3.Cross (Last.Forward, right);
+			Quaternion rotation = Quaternion.LookRotation (-Last.Forward, up);
+			factory.PutHorse (pos, rotation, Last);
+		}
+		return this;
+	}
+
+	public FloorList SuperAccelerator() {
+		if (factory != null) {
+			Vector3 pos = (Last.LeftForward + Last.RightForward) / 2f;
+			Vector3 right = (Last.RightForward - Last.LeftForward).normalized;
+			Vector3 up = Vector3.Cross (Last.Forward, right);
+			Quaternion rotation = Quaternion.LookRotation (-Last.Forward, up);
+			factory.PutSuperAccelerator (pos, rotation);
+		}
+		return this;
+	}
+
+	public FloorList LandingSite() {
+		if (factory != null) {
+			Vector3 pos = (Last.LeftForward + Last.RightForward) / 2f;
+			Vector3 right = (Last.RightForward - Last.LeftForward).normalized;
+			Vector3 up = Vector3.Cross (Last.Forward, right);
+			Quaternion rotation = Quaternion.LookRotation (-Last.Forward, up);
+			factory.PutLandingSite (pos, rotation, Last);
+		}
+		return this;
+	}
+}
+
+
+// Daikaiten
+class Stage1FloorsFactory: FloorListFactory {
+	public override FloorList CreateFloorList (CourseFactory cf) {
+		FloorList floors = new FloorList (new FlatFloor (Vector3.up, Vector3.zero, Vector3.forward, 60f, 20f), cf)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.OrbitY (80f, 0f, 0f, Mathf.PI / 2f, Mathf.PI / 8f, Vector3.right)
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+			.Flat (40f)
+			.Accelerator ()
+			.Flat (100f)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.OrbitY (80f, 0f, Mathf.PI / 2f, Mathf.PI, Mathf.PI / 8f, Vector3.forward)
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+			.Flat(40f)
+			.Accelerator()
+			.Flat (200f)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.OrbitY (80f, 0f, Mathf.PI, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.right)
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+			.SlopeTop (20f, Mathf.PI / 2f, 0f)
+			.Downslope (50f, Mathf.PI, Mathf.PI / 2f)
+			.Upslope (50f, Mathf.PI / 2f, 0f)
+			.SlopeTop (20f, Mathf.PI, Mathf.PI / 2f)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.OrbitY (80f, 0f, Mathf.PI * 3f / 2f, Mathf.PI * 2f, Mathf.PI / 8f, -Vector3.forward)
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+			.Flat (40F)
+			.Accelerator()
+			.Close ()
+			.Agari();
+		return floors;
+	}
+}
+
+// DarkRoom
+class Stage2FloorsFactory: FloorListFactory {
+	public override FloorList CreateFloorList (CourseFactory cf) {
+		FloorList floors = new FloorList (new FlatFloor (Vector3.up, Vector3.zero, Vector3.forward, 40f, 20f), cf)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.OrbitY (80f, 0f, 0f, Mathf.PI / 2f, Mathf.PI / 8f, Vector3.right)
+			.Horse()
+			.Flat (50f)
+			.OrbitY (80f, 21f, Mathf.PI / 2f, Mathf.PI, Mathf.PI / 8f, Vector3.forward)
+			.OrbitY (80f, 21f, Mathf.PI, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.right)
+			.OrbitY (80f, 21f, Mathf.PI * 3f / 2f, Mathf.PI * 2f, Mathf.PI / 8f, -Vector3.forward)
+			.OrbitY (80f, 21f, 0f, Mathf.PI / 2f, Mathf.PI / 8f, Vector3.right)
+			.OrbitY (80f, 21f, Mathf.PI / 2f, Mathf.PI, Mathf.PI / 8f, Vector3.forward)
+			.OrbitY (80f, 21f, Mathf.PI, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.right)
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+
+			.Upslope (50f, Mathf.PI / 2f, 0f)
+			.Flat (20f)
+			.SlopeTop (20f, Mathf.PI, 0f)
+			.Flat (20f)
+			.Downslope (50f, Mathf.PI, Mathf.PI / 2f)
+			.Flat (40f)
+			.Horse()
+
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+			.OrbitY (80f, -21f, Mathf.PI / 2f, Mathf.PI, Mathf.PI / 8f, -Vector3.forward, false)
+			.OrbitY (80f, -21f, Mathf.PI, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.right, false)
+			.OrbitY (80f, -21f, Mathf.PI * 3f / 2f, Mathf.PI * 2f, Mathf.PI / 8f, Vector3.forward, false)
+			.OrbitY (80f, -21f, 0f, Mathf.PI / 2f, Mathf.PI / 8f, Vector3.right, false)
+			.OrbitY (80f, -21f, Mathf.PI / 2f, Mathf.PI, Mathf.PI / 8f, -Vector3.forward, false)
+			.OrbitY (80f, -21f, Mathf.PI, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.right, false)
+			.Flat (50f)
+			.OrbitY (80f, 0f, Mathf.PI * 3f / 2f, Mathf.PI * 2f, Mathf.PI / 8f, Vector3.forward, false)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.Flat (10F)
+			.Close ()
+			.Agari();
+		return floors;
+	}
+}
+
+// ChoKaiten
+class Stage3FloorsFactory: FloorListFactory {
+	public override FloorList CreateFloorList (CourseFactory cf) {
+		FloorList floors = new FloorList (new FlatFloor (Vector3.up, Vector3.zero, Vector3.forward, 60f, 20f), cf)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.OrbitY (120f, 0f, 0f, Mathf.PI / 2f, Mathf.PI / 8f, Vector3.right)
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+			.Accelerator ()
+			.SlopeTop (20f, Mathf.PI / 2f, 0f)
+			.Downslope (100f, Mathf.PI, Mathf.PI / 2f)
+			.Accelerator ()
+			.Upslope (100f, Mathf.PI / 2f, 0f)
+			.SlopeTop (20f, Mathf.PI, Mathf.PI / 2f)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.OrbitY (80f, 0f, Mathf.PI / 2f, Mathf.PI, Mathf.PI / 8f, Vector3.forward)
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+
+			.Upslope (50f, Mathf.PI / 2f, 0f)
+			.Flat (20f)
+			.SuperAccelerator ()
+			.SlopeTop (25f, Mathf.PI, 0f)
+			.Flat (20f)
+			.Downslope (50f, Mathf.PI, Mathf.PI / 2f)
+
+			.Incline (20f, 0f, Mathf.PI / 8f)
+			.Horse ()
+			.OrbitY (80f, 0f, Mathf.PI, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.right)
+			.Horse ()
+			.Incline (40f, 0f, -Mathf.PI / 4f)
+			.Horse ()
+			.OrbitY (80f, 0f, Mathf.PI / 2f, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.forward, false)
+			.Horse ()
+			.Incline (40f, 0f, Mathf.PI / 4f)
+			.OrbitY (80f, 0f, Mathf.PI / 2f, Mathf.PI * 3f / 2f, Mathf.PI / 8f, Vector3.forward)
+			.Incline (40f, 0f, -Mathf.PI / 4f)
+			.OrbitY (80f, 0f, Mathf.PI / 2f, Mathf.PI, Mathf.PI / 8f, -Vector3.forward, false)
+			.Incline (20f, 0f, Mathf.PI / 8f)
+
+			.Upslope (50f, Mathf.PI / 2f, 0f)
+			.Flat (20f)
+			.SlopeTop (25f, Mathf.PI, 0f)
+			.LandingSite ()
+			.Flat (20f)
+			.Downslope (50f, Mathf.PI, Mathf.PI / 2f)
+
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.OrbitY (120f, 0f, Mathf.PI, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.right)
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+			.Flat (40f)
+			.Accelerator ()
+			.Flat (200f)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.OrbitY (120f, 0f, Mathf.PI * 3f / 2f, Mathf.PI * 2f, Mathf.PI / 8f, -Vector3.forward)
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+			.Flat (10F)
+			.Accelerator ()
+			.Incline (160f, 0f, Mathf.PI)
+			.Incline (160f, 0f, Mathf.PI)
+			.Flat (40f)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.OrbitY (100f, 0f, 0f, Mathf.PI / 2f, Mathf.PI / 8, Vector3.right)
+			.Incline (40f, 0f, -Mathf.PI / 4f)
+			.OrbitY (100f, 0f, Mathf.PI * 3f / 2f, Mathf.PI * 2f, Mathf.PI / 8, Vector3.forward, false)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.Close ()
+			.Agari();
+		return floors;
+	}
+}
+
+// Matrix
+class Stage4FloorsFactory: FloorListFactory {
+	public override FloorList CreateFloorList (CourseFactory cf) {
+		FloorList floors = new FloorList (new FlatFloor (Vector3.up, Vector3.zero, Vector3.forward, 40f, 20f), cf)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.Flat (10f)
+			.OrbitY (80f, 0f, 0f, Mathf.PI / 2f, Mathf.PI / 8f, Vector3.right)
+			.Flat(10f)
+			.Accelerator ()
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+			.Flat (165f)
+			.Upslope (50f, Mathf.PI / 2f, 0f)
+			.Flat (20f)
+			.SlopeTop (25f, Mathf.PI, 0f)
+			.Flat (20f)
+			.Horse()
+			.Downslope (50f, Mathf.PI, Mathf.PI / 2f)
+			.Flat (10f)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.Flat (10f)
+			.OrbitY (80f, 0f, Mathf.PI / 2f, Mathf.PI, Mathf.PI / 8f, Vector3.forward)
+			.OrbitY (80f, 0f, Mathf.PI, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.right)
+			.Incline (20f, 0f, -Mathf.PI / 4f)
+			.OrbitY (80f, 0f, Mathf.PI / 2f, Mathf.PI, Mathf.PI / 8f, -Vector3.forward, false)
+			.Incline (20f, 0f, Mathf.PI / 8f)
+			.Flat (10f)
+			.SlopeTop (20f, Mathf.PI / 2f, 0f)
+			.Downslope (100f, Mathf.PI, Mathf.PI / 2f)
+			.Flat (20f)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.Flat (10f)
+			.OrbitY (80f, 0f, Mathf.PI, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.right)
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+			.Flat (20f)
+			.Accelerator ()
+			.Upslope (100f, Mathf.PI / 2f, 0f)
+			.SlopeTop (20f, Mathf.PI, Mathf.PI / 2f)
+			.Flat(20f)
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.OrbitY (80f, 0f, Mathf.PI * 3f / 2f, Mathf.PI * 2f, Mathf.PI / 8f, -Vector3.forward)
+			.Incline (40f, 0f, - Mathf.PI / 8f)
+			.Accelerator()
+			.Close()
+			.Agari();
+		return floors;
+	}
+}
+
+// SushiParadice
+class Stage5FloorsFactory: FloorListFactory {
+	public override FloorList CreateFloorList (CourseFactory cf) {
+		FloorList floors = new FloorList (new FlatFloor (Vector3.up, Vector3.zero, Vector3.forward, 10f, 20f), cf)
+			.Flat(110f)
+
+			.Upslope (50f, Mathf.PI / 2f, 0f)
+			.Flat (20f)
+
+			.Incline (80f, 0f, Mathf.PI)
+			.Incline (80f, 0f, Mathf.PI)
+			.Flat (100f)
+
+			.SuperAccelerator()
+			.SlopeTop (25f, Mathf.PI, 0f)
+			.Flat (120f)
+			.Downslope (50f, Mathf.PI, Mathf.PI / 2f)
+
+			.Incline (50f, 0f, Mathf.PI / 8f)
+			.OrbitY (80f, 21f, 0f, Mathf.PI / 2f, Mathf.PI / 8f, Vector3.right)
+			.OrbitY (80f, 21f, Mathf.PI / 2f, Mathf.PI, Mathf.PI / 8f, Vector3.forward)
+			.OrbitY (80f, 21f, Mathf.PI, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.right)
+			.OrbitY (80f, 21f, Mathf.PI * 3f / 2f, Mathf.PI * 2f, Mathf.PI / 8f, -Vector3.forward)
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+
+			.Upslope (50f, Mathf.PI / 2f, 0)
+			.Flat(30f)
+
+			.SlopeTop (25f, Mathf.PI, Mathf.PI / 2f)
+			.SlopeTop (25f, Mathf.PI / 2f, 0f)
+			.LandingSite()
+			.Flat(30f)
+
+			.Downslope (50f, Mathf.PI, Mathf.PI / 2f)
+
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.OrbitY (80f, 0f, 0f, Mathf.PI / 2f, Mathf.PI / 8f, Vector3.right)
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+
+			.SlopeTop (100f, Mathf.PI / 2f, 0f)
+			.Flat(115f)
+			.Downslope (30f, Mathf.PI, Mathf.PI / 2f)
+
+			.Incline (40f, 0f, Mathf.PI / 8f)
+			.OrbitY (80f, 0f, Mathf.PI / 2f, Mathf.PI, Mathf.PI / 8f, Vector3.forward)
+
+			.Flat(60f)
+			.OrbitY (80f, 0f, Mathf.PI, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.right)
+			.Incline (40f, 0f, -Mathf.PI / 4f)
+			.OrbitY (80f, 0f, Mathf.PI / 2f, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.forward, false)
+			.Incline (40f, 0f, Mathf.PI / 4f)
+			.OrbitY (80f, 0f, Mathf.PI / 2f, Mathf.PI * 3f / 2f, Mathf.PI / 8f, Vector3.forward)
+			.Incline (40f, 0f, -Mathf.PI / 4f)
+			.OrbitY (80f, 0f, Mathf.PI / 2f, Mathf.PI, Mathf.PI / 8f, -Vector3.forward, false)
+			.Incline (20f, 0f, Mathf.PI / 8f)
+
+			.Incline (60f, 0f, Mathf.PI / 8f)
+			.OrbitY (85f, 0f, Mathf.PI, Mathf.PI * 3f / 2f, Mathf.PI / 8f, -Vector3.right)
+			.OrbitY (85f, 0f, Mathf.PI * 3f / 2f, Mathf.PI * 2f, Mathf.PI / 8f, -Vector3.forward)
+			.Incline (40f, 0f, -Mathf.PI / 8f)
+			.Close ()
+			.Agari();
+		return floors;
 	}
 }
