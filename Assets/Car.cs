@@ -335,7 +335,7 @@ public class Car : MonoBehaviour {
 	}
 
 	void drive() {
-		if (keyConfig.IsPressed(ConfigurableKeyType.Space)) {
+		if (keyConfig.IsPressed(ConfigurableKeyType.Space) || keyConfig.IsPressed(ConfigurableKeyType.Enter)) {
 			speed += acceleration;
 			if (speed > maxSpeed) {
 				speed = maxSpeed;

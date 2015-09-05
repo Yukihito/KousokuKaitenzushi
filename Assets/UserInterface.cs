@@ -94,7 +94,7 @@ public class UserInterface : MonoBehaviour {
 
 	public void OpenTwitter() {
 		string stageName = Stage.GetStageById (CurrentStageId).Name;
-		string message = "『" + stageName + "』を " + FormatFloatTime(GoalTime) + " でクリア! #高速廻転寿司";
+		string message = "『" + stageName + "』を " + FormatFloatTime(GoalTime) + " でクリア! #高速廻転寿司 http://yukihito.github.io/KousokuKaitenzushi/";
 		Application.OpenURL("http://twitter.com/intent/tweet?text=" + WWW.EscapeURL(message));
 	}
 

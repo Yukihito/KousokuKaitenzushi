@@ -60,7 +60,7 @@ public class TitlePage : MonoBehaviour {
 				soundManager.PiAudioSource.Play ();
 			}
 
-			if (Input.GetKey (KeyCode.KeypadEnter) || Input.GetKey (KeyCode.Return)) {
+			if (Input.GetKey (KeyCode.KeypadEnter) || Input.GetKey (KeyCode.Return) || Input.GetKey(KeyCode.Space)) {
 				IsSelected = true;
 				curtain.FadeOut ();
 				soundManager.ClickAudioSource.Play ();
